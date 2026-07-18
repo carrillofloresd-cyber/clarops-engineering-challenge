@@ -1,80 +1,42 @@
-# Distributed Event Watchdog Challenge
+# Clarops Distributed Event Watchdog - Submission
 
-## Context
+## 1. Problem Understanding
 
-In Clarops, some operational flows are distributed across multiple services. Each service may emit events when it completes an action. In many cases, after one event is received, another event is expected to arrive within a specific time window.
+This project implements a lightweight event watchdog for distributed operational flows.
+Each event belongs to a trace identified by `traceId`, and the service tracks the current flow status based on:
 
-The goal of this challenge is to build a small service that receives distributed events, tracks the state of a flow by `traceId`, and reports whether the flow is started, waiting for another event, completed, or expired because an expected event did not arrive within the configured TTL.
+- incoming events via `POST /api/events`
+- current trace state query via `GET /api/traces/{traceId}/status`
+- TTL evaluation for expected next events
 
-This challenge is intentionally small in scope, but some requirements are intentionally open. We want to understand how you analyze ambiguity, define assumptions, split development work into tasks, use AI tools, and make technical decisions.
+The implemented status model is:
 
-You may use AI tools such as ChatGPT, Claude, Cursor, Copilot, or similar.
+- `STARTED`
+- `WAITING_OTHER_EVENT`
+- `TTL_EXPIRED_FOR_EVENT`
+- `COMPLETED`
 
----
+## 2. Submission Checklist (Mapped 1:1)
 
-## Running the Project
+|                            Challenge Requirement                             | Status |                                                                 Evidence                                                                 |
+|------------------------------------------------------------------------------|--------|------------------------------------------------------------------------------------------------------------------------------------------|
+| Functional code                                                              | Done   | `src/main/java/com/clara/challenge/trace/`                                                                                               |
+| Database schema DDL                                                          | Done   | `docker/init-scripts/db/01-init-schema.sql`                                                                                              |
+| SQL init script in docker/init-scripts/db                                    | Done   | `docker/init-scripts/db/01-init-schema.sql`                                                                                              |
+| README with understanding/assumptions/decisions/trade-offs/run/Hurl/examples | Done   | This document                                                                                                                            |
+| `TASKS.md`                                                                   | Done   | `TASKS.md`                                                                                                                               |
+| `AI_USAGE.md`                                                                | Done   | `AI_USAGE.md`                                                                                                                            |
+| Unit tests                                                                   | Done   | `src/test/java/com/clara/challenge/trace/TraceEventServiceTest.java`, `src/test/java/com/clara/challenge/trace/TraceControllerTest.java` |
+| Hurl E2E tests                                                               | Done   | `hurl/e2e/*.hurl`                                                                                                                        |
+| All Hurl tests pass successfully                                             | Done   | `scripts/run-hurl-e2e-local.ps1` completed successfully with all scenarios passing                                                       |
 
-For setup and run instructions see **[SETUP.md](SETUP.md)**.
+## 3. Implemented API Contract
 
----
+### 3.1 POST /api/events
 
-## Expected Duration
+Consumes one event and creates/updates trace state.
 
-This challenge is designed to be completed in **3 to 4 hours**.
-
-We do not expect a production-ready system. We expect a clear, functional MVP with good analysis, documented trade-offs, meaningful tests, and a reasonable implementation.
-
----
-
-## Repository Notes
-
-The repository already includes the base setup required to run with:
-
-- Spring Boot
-- PostgreSQL
-- Basic application structure
-- Database connectivity
-- An existing endpoint that reads information from the database
-
-You should build your solution on top of the existing project.
-
-You do **not** need to add Kafka, SQS, Pub/Sub, Flyway, Liquibase, Docker, or any external event infrastructure.
-
----
-
-# Goal
-
-Build a service with two endpoints:
-
-```
-POST /events
-GET /traces/{traceId}/status
-```
-
-The service must:
-
-1. Receive events associated with a `traceId`.
-2. Track the current state of the distributed flow.
-3. Allow an event to define the next expected event and the TTL to wait for it.
-4. Allow an event to indicate that the flow has finished.
-5. Return the current status of the flow by `traceId`.
-6. Detect TTL expiration when the expected next event does not arrive on time.
-
----
-
-# Functional Requirements
-
-## 1. Receive Events
-
-The service must expose:
-
-```
-POST /events
-```
-
-This endpoint receives an event related to a distributed flow.
-
-### Request Body Contract
+Example request:
 
 ```json
 {
@@ -93,56 +55,7 @@ This endpoint receives an event related to a distributed flow.
 }
 ```
 
-### Field Description
-
-|         Field         |   Type   | Required |                            Description                             |
-|-----------------------|----------|----------|--------------------------------------------------------------------|
-| `eventId`             | string   | Yes      | Unique identifier of the event.                                    |
-| `traceId`             | string   | Yes      | Identifier of the distributed flow.                                |
-| `eventName`           | string   | Yes      | Name of the event being reported.                                  |
-| `result`              | string   | Yes      | Result of the event. Allowed values: `SUCCESS`, `ERROR`.           |
-| `occurredAt`          | datetime | Yes      | Date and time when the event occurred.                             |
-| `nextExpectedEvent`   | string   | No       | Name of the next event expected for this trace.                    |
-| `nextEventTtlSeconds` | number   | No       | Maximum number of seconds to wait for the next expected event.     |
-| `finalEvent`          | boolean  | No       | Indicates whether this event completes the flow. Default: `false`. |
-| `metadata`            | object   | No       | Flexible metadata associated with the event.                       |
-
----
-
-## 2. Query Trace Status
-
-The service must expose:
-
-```
-GET /traces/{traceId}/status
-```
-
-This endpoint returns the current state of the flow associated with the given `traceId`.
-
-The status must be calculated based on the received events and the TTL of the next expected event.
-
-The service does **not** need to implement a scheduler or background job. TTL expiration may be evaluated when the status endpoint is called.
-
----
-
-# Trace Statuses
-
-The service must support the following statuses:
-
-|         Status          |                                               Description                                                |
-|-------------------------|----------------------------------------------------------------------------------------------------------|
-| `STARTED`               | The first event was received, but there is no next expected event defined and the flow is not completed. |
-| `WAITING_OTHER_EVENT`   | The latest event defined a next expected event and its TTL has not expired yet.                          |
-| `TTL_EXPIRED_FOR_EVENT` | The expected next event did not arrive before the configured TTL expired.                                |
-| `COMPLETED`             | A received event marked the flow as completed using `finalEvent = true`.                                 |
-
----
-
-# Status Response Contract
-
-The exact response structure is part of the design you must define.
-
-However, the response should include enough information to understand the current state of the trace, such as:
+Example response (202 Accepted):
 
 ```json
 {
@@ -156,548 +69,340 @@ However, the response should include enough information to understand the curren
 }
 ```
 
-You may add or remove fields if your design justifies it. Please document your decision.
+### 3.2 GET /api/traces/{traceId}/status
 
----
+Returns current trace state and lazily evaluates TTL expiration.
 
-# Expected Behavior
+Example response:
 
-## First Event
-
-When the first event for a `traceId` is received, the service must create the trace state.
-
-The resulting status depends on the event:
-
-- If the event defines a next expected event and TTL, the trace should move to `WAITING_OTHER_EVENT`.
-- If the event does not define a next expected event and is not final, the trace should remain in `STARTED`.
-- If the event is marked as final, the trace should move to `COMPLETED`.
-
----
-
-## Waiting for Another Event
-
-When an event defines `nextExpectedEvent` and `nextEventTtlSeconds`, the trace should wait for that event until the TTL expires.
-
-You must decide and document how the TTL is calculated.
-
-For example, you may calculate it from:
-
-- `occurredAt`
-- the time the service received the event
-- another approach you consider better for this MVP
-
----
-
-## Expected Event Arrives
-
-If the next received event matches the expected event, the trace should advance.
-
-The new event may:
-
-- define another expected event;
-- complete the flow;
-- leave the flow in another valid state according to your design.
-
----
-
-## TTL Expiration
-
-If the expected event does not arrive within the configured TTL, the trace status must be reported as:
-
-```
-TTL_EXPIRED_FOR_EVENT
+```json
+{
+  "traceId": "trace-123",
+  "status": "TTL_EXPIRED_FOR_EVENT",
+  "lastEventName": "APPLICATION_RECEIVED",
+  "lastEventResult": "SUCCESS",
+  "nextExpectedEvent": "RULES_EVALUATED",
+  "nextExpectedBefore": "2026-06-15T10:02:00Z",
+  "eventsReceived": 1
+}
 ```
 
-A real alerting system is not required. For this MVP, the expired status is enough to represent the alert.
+### 3.3 Error Contract Examples (400 / 404 / 409)
 
----
+Validation error (400 Bad Request), example for invalid payload on `POST /api/events`:
 
-## Final Event
-
-If an event is received with `finalEvent = true`, the trace must be marked as:
-
-```
-COMPLETED
-```
-
-A completed trace should not be reported as expired.
-
----
-
-## Event Result
-
-The event result must support:
-
-```
-SUCCESS
-ERROR
+```json
+{
+  "timestamp": "2026-07-17T19:34:08.700Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "VALIDATION_ERROR",
+  "message": "eventId must not be blank; result must match \"SUCCESS|ERROR\"",
+  "path": "/api/events"
+}
 ```
 
-The `result` indicates the outcome of the event, not necessarily the overall status of the trace.
+Unknown trace (404 Not Found), example for `GET /api/traces/trace-missing/status`:
 
-For example, a flow may be completed with a final event whose result is `ERROR`.
-
----
-
-# Database Requirement
-
-You must define the database schema required for your solution.
-
-One of your development tasks must be:
-
-> Define the DDL for the data model and include the initialization script inside the `docker/init-scripts/db/` folder.
-
-You do **not** need to use Flyway, Liquibase, or any similar migration tool. A plain SQL initialization script is enough.
-
-Your schema should support the behavior required by the challenge. You are expected to make and document your own decisions regarding:
-
-- tables;
-- columns;
-- constraints;
-- indexes;
-- whether to store event history, current trace state, or both;
-- how to store `metadata`.
-
----
-
-# Open Questions
-
-Some requirements are intentionally open. You are expected to identify them, make reasonable decisions, and document your assumptions.
-
-Please include these decisions in your `README.md`.
-
-Examples of open questions:
-
-1. What should happen if the same `eventId` is received more than once?
-2. What should happen if an event arrives with a different `eventName` than the currently expected event?
-3. What should happen if the expected event arrives after the TTL already expired?
-4. Should TTL be calculated from `occurredAt` or from the time the event was received by the service?
-5. Should a completed trace accept more events?
-6. What should happen if the first event is also a final event?
-7. What should happen if an event with `result = ERROR` defines a next expected event?
-8. Should `metadata` be stored as JSON, structured columns, or ignored?
-9. How should the service avoid inconsistent trace states?
-10. What should be returned when querying a `traceId` that does not exist?
-
-There is no single correct answer for all of these. We care about your reasoning, trade-offs, and implementation quality.
-
----
-
-# Required Deliverables
-
-Your submitted fork must include:
-
-1. Functional code.
-2. Database schema DDL.
-3. SQL initialization script inside the `docker/init-scripts/db/` folder.
-4. `README.md` updated with:
-   - problem understanding;
-   - assumptions;
-   - technical decisions;
-   - trade-offs;
-   - how to run the project;
-   - how to run the Hurl tests;
-   - request and response examples.
-5. `TASKS.md` with the tasks used during development.
-6. `AI_USAGE.md` with the AI tools and prompts used.
-7. Unit tests.
-8. Hurl end-to-end tests covering the expected use cases.
-9. All Hurl tests must pass successfully.
-
----
-
-Submission Instructions
-
-# TASKS.md Requirement
-
-The `TASKS.md` file is important.
-
-We want to understand how you split the problem before implementing it, especially if you use an LLM to help you write the code.
-
-A good task breakdown should avoid vague instructions such as:
-
-```
-Implement the whole challenge.
+```json
+{
+  "timestamp": "2026-07-17T19:34:08.820Z",
+  "status": 404,
+  "error": "Not Found",
+  "code": "TRACE_NOT_FOUND",
+  "message": "Trace not found",
+  "path": "/api/traces/trace-missing/status"
+}
 ```
 
-or:
+Duplicate event ID (409 Conflict), example for `POST /api/events`:
 
-```
-Create the watchdog service.
-```
-
-Those tasks are too broad and may cause an LLM to infer too much, spend more time, produce unnecessary code, or use more tokens than needed.
-
-Instead, prefer small and explicit tasks.
-
-Example:
-
-```markdown
-# Tasks
-
-## Task 1 — Define data model and DDL
-
-- Define the tables required to support the solution.
-- Define constraints and indexes.
-- Add SQL initialization script under `docker/init-scripts/db/`.
-
-## Task 2 — Implement event ingestion contract
-
-- Create the request contract for `POST /events`.
-- Validate required fields.
-- Persist the received event.
-- Create or update trace state.
-
-## Task 3 — Implement trace status logic
-
-- Implement the logic to return `STARTED`, `WAITING_OTHER_EVENT`, `TTL_EXPIRED_FOR_EVENT`, or `COMPLETED`.
-- Define how TTL is calculated.
-- Document edge-case decisions.
-
-## Task 4 — Implement status endpoint
-
-- Create `GET /traces/{traceId}/status`.
-- Return the current trace state.
-- Handle unknown `traceId`.
-
-## Task 5 — Add tests
-
-- Add unit tests for the core state transition logic.
-- Add Hurl tests for at least two end-to-end scenarios.
+```json
+{
+  "timestamp": "2026-07-17T19:34:08.760Z",
+  "status": 409,
+  "error": "Conflict",
+  "code": "DUPLICATE_EVENT_ID",
+  "message": "Event ID already exists",
+  "path": "/api/events"
+}
 ```
 
-You may define your own tasks. The important part is that they are clear, scoped, and useful for development.
+## 4. Design Decisions and Trade-offs
 
----
+### 4.1 Data model strategy
 
-# Unit Tests Requirement
+Decision:
 
-You must include unit tests.
+- Store both current state and event history.
 
-We do not expect unit tests to be randomly selected by an LLM. We expect you to define a clear testing standard and then use it consistently.
+Tables:
 
-Your unit tests should focus on the core business logic, especially:
+- `clarops_challenge_schema.traces` stores current trace snapshot.
+- `clarops_challenge_schema.trace_events` stores immutable event history.
+- `clarops_challenge_schema.health` remains for setup validation endpoint.
 
-- first event creates the trace state;
-- event with next expected event moves the trace to `WAITING_OTHER_EVENT`;
-- TTL expiration returns `TTL_EXPIRED_FOR_EVENT`;
-- final event moves the trace to `COMPLETED`;
-- duplicate event behavior, if you choose to support it;
-- late event behavior, if you choose to support it.
+Trade-off:
 
-You do not need to test every possible edge case. We care more about whether your tests are meaningful, consistent, and aligned with your decisions.
+- Data duplication (latest fields in `traces`) improves query speed and simplifies status responses.
 
----
+### 4.2 TTL strategy
 
-## Unit Test Prompt Requirement
+Decision:
 
-If you use AI to define or generate unit tests, you must include the prompt you used in `AI_USAGE.md`.
+- `nextExpectedBefore = occurredAt + nextEventTtlSeconds`.
 
-The prompt should define a testing standard. It should not simply ask the LLM to “write any tests”.
+Trade-off:
 
-Avoid prompts like:
+- Uses event business time (not reception time), which is deterministic but can expire quickly if events arrive late.
 
-```
-Write unit tests for this service.
-```
+### 4.3 Expiration evaluation strategy
 
-Prefer prompts that define clear expectations, for example:
+Decision:
 
-```
-Define unit tests for the Event Watchdog state transition service.
+- No scheduler/background jobs.
+- TTL expiration is computed when status is queried.
 
-Use the following standard:
-- Test method names should follow: shouldExpectedBehavior_WhenCondition.
-- Each test should validate one business rule only.
-- Use Arrange / Act / Assert structure.
-- Avoid testing framework or Spring wiring unless necessary.
-- Focus on state transitions, TTL expiration, final event behavior, duplicate events, and late events.
-- Do not add tests for behavior not defined in the challenge unless clearly marked as an assumption.
-- For every test, explain which requirement or assumption it validates.
-```
+Trade-off:
 
-You may use your own standard. The important part is that your prompt makes the expected testing style explicit.
+- Simpler MVP and lower operational complexity.
+- Expiration transitions happen lazily at read-time.
 
----
+### 4.4 Consistency strategy
 
-# E2E Validation with Hurl
+Decision:
 
-The Hurl tests are part of the official validation criteria for this challenge.
+- API-level validation for required fields and allowed `result` values.
+- DB-level check constraints and unique constraints.
+- Transactional service methods for trace/event updates.
 
-We will use the Hurl end-to-end tests to validate the expected use cases implemented by the candidate. These tests are expected to run successfully in **100% of the covered scenarios**.
+Trade-off:
 
-The goal of the Hurl tests is to validate the service from the outside, using the public HTTP contract, not internal implementation details.
+- Keeps logic simple but does not enforce strict expected-event-name transition matching.
 
-The Hurl tests should validate behavior through the public HTTP API:
+## 5. Open Questions and Assumptions
 
-```
-POST /events
-GET /traces/{traceId}/status
-```
+1. Duplicate `eventId`:
 
-Do not rely on direct database queries for Hurl validation unless you clearly justify it.
+- Rejected (`Event ID already exists`).
 
----
+2. Event name different from currently expected event:
 
-## Required Hurl Coverage
+- Accepted in current implementation (no strict expected-name gate).
 
-At minimum, the Hurl tests must cover:
+3. Expected event arrives after TTL expired:
 
-1. A trace that starts and reaches `STARTED`.
-2. A trace that moves to `WAITING_OTHER_EVENT`.
-3. A trace that reaches `COMPLETED`.
-4. A trace that reaches `TTL_EXPIRED_FOR_EVENT`.
+- Accepted as a new event; state recalculated from latest event.
 
-If your implementation includes additional decisions, such as duplicate event handling, late event handling, or unexpected event handling, please include Hurl tests for those scenarios as well.
+4. TTL origin:
 
-A suggested folder structure is:
+- Calculated from `occurredAt`.
 
-```
-hurl/
-  started-flow.hurl
-  waiting-other-event-flow.hurl
-  completed-flow.hurl
-  ttl-expired-flow.hurl
-```
+5. Completed trace receives more events:
 
-Please include instructions in the README explaining how to run the Hurl tests.
+- Rejected (`Completed trace does not accept new events`).
 
-Example:
+6. First event is also final event:
+
+- Trace is immediately `COMPLETED`.
+
+7. Event with `result=ERROR` and next expected event:
+
+- Allowed; result does not directly drive trace status.
+
+8. Metadata storage:
+
+- Stored as JSON (`JSONB` in Postgres schema).
+
+9. Inconsistent state prevention:
+
+- Transaction boundaries + DB constraints + unique IDs.
+
+10. Unknown trace query:
+
+- Throws `IllegalArgumentException` (`Trace not found`) and is mapped to `404 Not Found` with the standard API error payload.
+
+## 6. Data Model (DDL)
+
+Defined in:
+
+- `docker/init-scripts/db/01-init-schema.sql`
+
+Includes:
+
+- schema creation (`clarops_challenge_schema`)
+- `traces` table with status/result constraints
+- `trace_events` history table with FK to `traces`
+- indexes for status and trace/event lookup
+
+## 7. How to Run the Project
+
+Primary setup instructions are in `SETUP.md`.
+
+Quick run:
 
 ```bash
-hurl --test hurl/*.hurl
+./mvnw spring-boot:run
 ```
 
----
+Health check:
 
-# AI-Assisted Implementation
-
-You may use AI tools freely to implement this challenge.
-
-This includes, but is not limited to:
-
-- data model design;
-- DDL definition;
-- Spring components;
-- controllers;
-- services;
-- repositories;
-- DTOs;
-- unit tests;
-- Hurl scripts;
-- documentation;
-- refactoring;
-- debugging.
-
-Using AI is allowed and expected.
-
-However, the candidate is responsible for understanding the final solution.
-
-During the technical interview, we may ask questions about any part of the implementation, including:
-
-- why the data model was designed that way;
-- why certain tables, columns, constraints, or indexes were created;
-- why a specific state transition was implemented;
-- how TTL expiration is calculated;
-- how duplicate events are handled;
-- how late events are handled;
-- how unexpected events are handled;
-- why certain unit tests were included or excluded;
-- why the Hurl scenarios were selected;
-- how the implementation would change with more time;
-- what parts were generated by AI and what parts were manually adjusted.
-
-The purpose is not to penalize AI usage. The purpose is to understand whether the candidate can reason about what the LLM produced and whether they can explain, validate, and challenge the generated code.
-
-Generated code is acceptable. Unexplained generated code is not.
-
----
-
-# AI_USAGE.md Requirement
-
-Please include an `AI_USAGE.md` file with:
-
-1. AI tools used.
-2. Main prompts used.
-3. Prompt used to define the unit test standard.
-4. Prompts used to generate or refine Hurl tests.
-5. What parts of the solution were generated or assisted by AI.
-6. Which AI suggestions you accepted.
-7. Which AI suggestions you rejected and why.
-8. Any important correction you made to the AI output.
-9. Any part of the generated code that required manual review or adjustment.
-
-Example structure:
-
-```markdown
-# AI Usage
-
-## Tools Used
-
-- Claude
-- ChatGPT
-- Cursor
-
-## Prompts
-
-### Prompt 1 — Requirement analysis
-
-> Help me identify edge cases for a service that receives distributed events and tracks TTL expiration for the next expected event.
-
-### Prompt 2 — Task breakdown
-
-> Split this challenge into small implementation tasks suitable for an LLM-assisted workflow. Avoid broad tasks that require too much inference.
-
-### Prompt 3 — Unit test standard
-
-> Define unit tests for the Event Watchdog state transition service.
->
-> Use the following standard:
-> - Test method names should follow: shouldExpectedBehavior_WhenCondition.
-> - Each test should validate one business rule only.
-> - Use Arrange / Act / Assert structure.
-> - Focus on state transitions and TTL expiration.
-> - Do not add tests for behavior not defined in the challenge unless clearly marked as an assumption.
-
-### Prompt 4 — Hurl E2E scenarios
-
-> Define Hurl end-to-end tests for the public HTTP contract of the Event Watchdog service.
->
-> Cover these scenarios:
-> - trace starts successfully;
-> - trace waits for another event;
-> - trace completes successfully;
-> - trace expires when the expected event does not arrive within TTL.
->
-> Validate only public API responses. Do not assert internal database details.
-
-## Accepted Suggestions
-
-- Example: Using lazy TTL evaluation in the status endpoint.
-- Example: Storing event metadata as JSON.
-
-## Rejected Suggestions
-
-- Example: Kafka-based implementation, because the challenge does not require real event infrastructure.
-- Example: Scheduler-based expiration, because lazy evaluation is enough for the MVP.
-
-## Manual Decisions
-
-- Example: TTL is calculated from `occurredAt`.
-- Example: Duplicate `eventId` returns a conflict response.
-- Example: A completed trace does not accept new events.
+```bash
+curl http://localhost:8080/api/health
 ```
 
----
+Expected value:
 
-# Out of Scope
+```text
+clarops sr engineer challenge
+```
 
-The following items are not required:
+## 8. How to Run Tests
 
-- Kafka, SQS, Pub/Sub, or any real message broker.
-- Scheduler or background job.
-- External alert notification system.
-- UI.
-- Authentication or authorization.
-- Docker changes, unless you consider them necessary.
-- Flyway, Liquibase, or database migration tools.
-- Multi-tenant support.
-- Multiple dynamic flow definitions.
-- Production-grade observability.
-- Distributed locks.
-- Retry mechanisms.
+### 8.1 Unit and controller tests
 
----
+```bash
+./mvnw test
+```
 
-# Submission Instructions
+### 8.2 Hurl E2E tests
 
-Please submit your solution as a fork of this repository.
+Scenario files:
 
-## Expected Submission Format
+- `hurl/e2e/01-started-flow.hurl`
+- `hurl/e2e/02-waiting-flow.hurl`
+- `hurl/e2e/03-ttl-expired-flow.hurl`
+- `hurl/e2e/04-completed-flow.hurl`
+- `hurl/e2e/05-expected-event-advances-flow.hurl`
 
-1. Fork this repository.
-2. Implement your solution in your fork.
-3. Push all required changes to your fork.
-4. Share the repository URL with the recruiting or interview team.
+Run with Docker-aware orchestration:
 
-If your fork is private, please make sure the required reviewers have access before submitting it.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-hurl-e2e.ps1
+```
 
-Do not submit the solution as a ZIP file unless explicitly requested by the team.
+Run local fallback (in-memory DB):
 
-## Submission Checklist
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-hurl-e2e-local.ps1
+```
 
-Before submitting, please make sure your fork includes:
+Run Hurl directly when app is already up:
 
-- Functional implementation.
-- Database schema DDL.
-- SQL initialization script inside the `docker/init-scripts/db/` folder.
-- Updated `README.md`.
-- `TASKS.md`.
-- `AI_USAGE.md`.
-- Unit tests.
-- Hurl E2E tests.
-- Instructions to run the application.
-- Instructions to run the Hurl tests.
-- All covered Hurl scenarios passing successfully.
+```bash
+"C:\Program Files\hurl\hurl.exe" --test --variable base_url=http://localhost:8080/api hurl/e2e/*.hurl
+```
 
-The submitted repository should be self-contained enough for reviewers to run, inspect, and discuss during the technical interview.
+## 9. Testing Evidence
 
-# Evaluation Criteria
+### 9.1 Unit/controller evidence (from surefire reports)
 
-We will evaluate more than the final code.
+- `target/surefire-reports/com.clara.challenge.trace.TraceEventServiceTest.txt`
+  - Tests run: 7, Failures: 0, Errors: 0
+- `target/surefire-reports/com.clara.challenge.trace.TraceControllerTest.txt`
+  - Tests run: 3, Failures: 0, Errors: 0
+- `target/surefire-reports/com.clara.challenge.ClaropsChallengeApplicationTests.txt`
+  - Tests run: 1, Failures: 0, Errors: 0
 
-Because this challenge is designed to be completed in **3 to 4 hours**, we do not expect every area to be equally polished. Candidates should prioritize the most important parts first.
+### 9.2 E2E evidence (current runtime)
 
-## Highest-Weight Criteria
+- Deterministic local runner executed successfully via `scripts/run-hurl-e2e-local.ps1`.
+- All scenario files passed:
+  - `hurl/e2e/01-started-flow.hurl`
+  - `hurl/e2e/02-waiting-flow.hurl`
+  - `hurl/e2e/03-ttl-expired-flow.hurl`
+  - `hurl/e2e/04-completed-flow.hurl`
+  - `hurl/e2e/05-expected-event-advances-flow.hurl`
+- Aggregate result from the runner output: 5 succeeded files, 0 failed files.
+- Runner output includes final confirmation: `All Hurl E2E tests passed.`
 
-The following criteria carry the most weight:
+### 9.3 Proof block (latest successful local run)
 
-| Priority |                    Criteria                    |                                                                       What we are looking for                                                                        |
-|----------|------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1        | Requirement analysis and task breakdown        | Ability to identify ambiguity, define reasonable assumptions, and split the work into clear, scoped tasks that reduce unnecessary inference when using AI tools.     |
-| 2        | Core implementation and technical design       | A simple but coherent implementation of events, trace state, TTL expiration, and completion using a reasonable data model.                                           |
-| 3        | Validation and understanding of generated code | Hurl E2E tests passing for the expected use cases, meaningful unit tests, and ability to explain and defend implementation decisions during the technical interview. |
+Command:
 
-## Full Evaluation Criteria
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-hurl-e2e-local.ps1
+```
 
-|            Criteria             |                                       What we are looking for                                       |
-|---------------------------------|-----------------------------------------------------------------------------------------------------|
-| Requirement analysis            | Ability to identify ambiguity and define reasonable assumptions.                                    |
-| Task breakdown                  | Clear, scoped tasks that reduce unnecessary inference when using AI tools.                          |
-| Technical design                | Simple but coherent model for events, trace state, TTL, and completion.                             |
-| Database design                 | Reasonable DDL, constraints, indexes, and initialization script.                                    |
-| Implementation                  | Functional endpoints and correct core behavior.                                                     |
-| Unit tests                      | Meaningful tests focused on business rules and state transitions.                                   |
-| Hurl E2E tests                  | Public API validation for all expected use cases, with tests passing successfully.                  |
-| AI usage                        | Clear documentation of prompts, accepted suggestions, rejected suggestions, and manual corrections. |
-| Understanding of generated code | Ability to explain and defend implementation decisions during the technical interview.              |
-| Communication                   | Clear README, trade-offs, and explanation of decisions.                                             |
+Observed result excerpt:
 
-A strong submission does not need to over-engineer the solution. A strong submission should show good judgment, a working core flow, clear validation, and ownership of the AI-assisted implementation.
+```text
+Succeeded files:   1 (100.0%)
+Failed files:      0 (0.0%)
+...
+(repeated for all 5 scenario files)
+...
+All Hurl E2E tests passed.
+```
 
----
+Command:
 
-# Interview Follow-up
+```bash
+./mvnw test
+```
 
-After submitting the challenge, the technical interview may include questions about the implementation.
+Observed result excerpt:
 
-The interviewer may ask the candidate to explain:
+```text
+Running mvnw test with Java 25...
+TESTS_OK
+```
 
-- a specific class, function, or state transition;
-- a DDL decision;
-- a unit test;
-- a Hurl scenario;
-- a prompt used to generate part of the solution;
-- a trade-off documented in the README;
-- an edge case that was intentionally left out;
-- how the implementation would evolve with more time.
+## 10. Request/Response Examples by Required Status
 
-The goal is to evaluate how the candidate works with AI-generated code, how they review it, how they reason about it, and whether they can take ownership of the final solution.
+### STARTED
 
----
+Request:
 
-# Final Notes
+```json
+{
+  "eventId": "evt-started-1",
+  "traceId": "trace-started-1",
+  "eventName": "APPLICATION_RECEIVED",
+  "result": "SUCCESS",
+  "occurredAt": "2026-06-15T10:00:00Z",
+  "finalEvent": false
+}
+```
 
-Keep the solution simple.
+Response:
 
-We are not looking for a perfect event-driven platform. We are looking for a small and thoughtful implementation that shows how you reason about distributed events, TTL expiration, ambiguous requirements, database modeling, AI-assisted development, task decomposition, and testing standards.
+```json
+{
+  "traceId": "trace-started-1",
+  "status": "STARTED",
+  "lastEventName": "APPLICATION_RECEIVED",
+  "lastEventResult": "SUCCESS",
+  "nextExpectedEvent": null,
+  "nextExpectedBefore": null,
+  "eventsReceived": 1
+}
+```
+
+### WAITING_OTHER_EVENT
+
+Request includes `nextExpectedEvent` and `nextEventTtlSeconds`.
+
+Response includes:
+
+- `status = WAITING_OTHER_EVENT`
+- `nextExpectedEvent`
+- `nextExpectedBefore`
+
+### TTL_EXPIRED_FOR_EVENT
+
+After deadline passes and status is queried:
+
+- `status = TTL_EXPIRED_FOR_EVENT`
+
+### COMPLETED
+
+When `finalEvent=true` is posted:
+
+- `status = COMPLETED`
+
+## 11. Known Gaps / Next Improvements
+
+- Enforce strict expected-event transition when domain requires it.
+- Add CI pipeline stage that runs Hurl and publishes artifacts.
+

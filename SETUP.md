@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Java 21
+- Java 25
 - Docker (Docker Desktop or [Colima](https://github.com/abiosoft/colima) recommended)
 - Maven (or use the included `./mvnw` wrapper)
 
@@ -11,7 +11,7 @@
 ## Java Version
 
 The repository includes a `.sdkmanrc` file. If you use [SDKMAN](https://sdkman.io/), run the
-following command inside the project root to activate Java 21 automatically in your terminal
+following command inside the project root to activate Java 25 automatically in your terminal
 session:
 
 ```bash
@@ -31,13 +31,13 @@ cp docker/example.env docker/.env
 
 Then edit `docker/.env` and replace the placeholder values:
 
-| Variable          | Description                        | Default              |
-|-------------------|------------------------------------|----------------------|
-| `PG_HOST_PORT`    | Host port mapped to PostgreSQL     | `5432`               |
-| `PG_USERNAME`     | PostgreSQL user                    | `clarops`            |
-| `PG_PASSWORD`     | PostgreSQL user password           | `CHANGE_ME`          |
-| `PG_DATABASE`     | Database name                      | `clarops_challenge`  |
-| `PG_ADMIN_PASSWORD` | Password for the `postgres` admin user | `CHANGE_ME_ADMIN` |
+|      Variable       |              Description               |       Default       |
+|---------------------|----------------------------------------|---------------------|
+| `PG_HOST_PORT`      | Host port mapped to PostgreSQL         | `5432`              |
+| `PG_USERNAME`       | PostgreSQL user                        | `clarops`           |
+| `PG_PASSWORD`       | PostgreSQL user password               | `CHANGE_ME`         |
+| `PG_DATABASE`       | Database name                          | `clarops_challenge` |
+| `PG_ADMIN_PASSWORD` | Password for the `postgres` admin user | `CHANGE_ME_ADMIN`   |
 
 > **Important:** the values for `PG_HOST_PORT`, `PG_USERNAME`, `PG_PASSWORD`, and `PG_DATABASE`
 > must match the `spring.datasource` settings in `src/main/resources/application.yaml`.

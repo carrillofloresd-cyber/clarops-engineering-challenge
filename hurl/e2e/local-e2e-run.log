@@ -1,0 +1,40 @@
+﻿**********************
+Inicio de la transcripción de Windows PowerShell
+Hora de inicio: 20260717192603
+Nombre de usuario: DESKTOP-95N0SEU\Moyos
+Usuario RunAs: DESKTOP-95N0SEU\Moyos
+Nombre de la configuración: 
+Máquina: DESKTOP-95N0SEU (Microsoft Windows NT 10.0.26200.0)
+Aplicación host: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/run-hurl-e2e-local.ps1
+Id. de proceso: 19348
+PSVersion: 5.1.26100.8875
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.8875
+BuildVersion: 10.0.26100.8875
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Packaging application...
+
+Starting packaged app with e2e profile...
+Waiting for API readiness...
+PS>ErrorTerminación(Invoke-WebRequest): "La operación sobrepasó el tiempo de espera."
+PS>ErrorTerminación(Invoke-WebRequest): "La operación sobrepasó el tiempo de espera."
+Running 01-started-flow.hurl...
+
+Running 02-waiting-flow.hurl...
+
+Running 03-ttl-expired-flow.hurl...
+
+Running 04-completed-flow.hurl...
+
+Running 05-expected-event-advances-flow.hurl...
+
+All Hurl E2E tests passed.
+Stopping Spring Boot process...
+**********************
+Fin de la transcripción de Windows PowerShell
+Hora de finalización: 20260717192620
+**********************
